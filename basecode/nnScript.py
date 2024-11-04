@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.io import loadmat
 from math import sqrt
+from sklearn.feature_selection import VarianceThreshold
 
 
 def initializeWeights(n_in, n_out):
@@ -25,7 +26,9 @@ def sigmoid(z):
     """# Notice that z can be a scalar, a vector or a matrix
     # return the sigmoid of input z"""
 
-    return  # your code here
+    
+    return  1 / (1 + np.exp(-z))
+  
 
 
 def preprocess():
@@ -125,8 +128,12 @@ def preprocess():
     test_label = test_label_preprocess[test_perm]
 
     # Feature selection
-    # Your code here.
-
+     # Feature selection
+    selector = VarianceThreshold(threshold=0.01)
+    train_data = selector.fit_transform(train_data)
+    validation_data = selector.transform(validation_data)
+    test_data = selector.transform(test_data)
+    
     print('preprocess done')
 
     return train_data, train_label, validation_data, validation_label, test_data, test_label
@@ -176,14 +183,47 @@ def nnObjFunction(params, *args):
     w2 = params[(n_hidden * (n_input + 1)):].reshape((n_class, (n_hidden + 1)))
     obj_val = 0
 
-    # Your code here
-    #
-    #
-    #
-    #
-    #
+    # Number of training examples
+    num_samples = training_data.shape[0]
 
+    # Add bias to the input layer
+    bias_input = np.ones((num_samples, 1))
+    training_data = np.hstack((training_data, bias_input))
 
+    # Forward Pass
+    # Hidden layer activations
+    z = np.dot(training_data, w1.T)
+    a_hidden = 1 / (1 + np.exp(-z))  # Sigmoid activation
+
+    # Add bias to the hidden layer
+    bias_hidden = np.ones((a_hidden.shape[0], 1))
+    a_hidden = np.hstack((a_hidden, bias_hidden))
+
+    # Output layer activations
+    o = np.dot(a_hidden, w2.T)
+    a_output = 1 / (1 + np.exp(-o))  # Sigmoid activation
+
+    # One-hot encoding for training labels
+    y = np.zeros((num_samples, n_class))
+    y[np.arange(num_samples), training_label.astype(int)] = 1
+
+    # Compute Error (Cross-entropy loss with regularization)
+    log_likelihood_error = np.sum(y * np.log(a_output) + (1 - y) * np.log(1 - a_output))
+    obj_val = -log_likelihood_error / num_samples  # Define obj_val here
+    regularization = (lambdaval / (2 * num_samples)) * (np.sum(np.square(w1)) + np.sum(np.square(w2)))
+    obj_val += regularization
+
+    # Backpropagation
+    delta_output = a_output - y  # Error at output layer
+    grad_w2 = np.dot(delta_output.T, a_hidden) / num_samples + (lambdaval / num_samples) * w2
+
+    # Remove the bias term from w1 gradients
+    delta_hidden = np.dot(delta_output, w2) * a_hidden * (1 - a_hidden)
+    delta_hidden = delta_hidden[:, :-1]  # Remove bias delta
+    grad_w1 = np.dot(delta_hidden.T, training_data) / num_samples + (lambdaval / num_samples) * w1
+
+    # Calculated gradient values
+    calculated_obj_grad = np.concatenate((grad_w1.flatten(), grad_w2.flatten()), 0)
 
     # Make sure you reshape the gradient matrices to a 1D array. for instance if your gradient matrices are grad_w1 and grad_w2
     # you would use code similar to the one below to create a flat array
@@ -211,8 +251,25 @@ def nnPredict(w1, w2, data):
     % label: a column vector of predicted labels"""
 
     labels = np.array([])
-    # Your code here
+    num_samples = data.shape[0]
+    bias_input = np.ones((num_samples, 1))
+    data = np.hstack((data, bias_input))
 
+    # Forward pass to hidden layer
+    z = np.dot(data, w1.T)
+    a_hidden = 1 / (1 + np.exp(-z))  # Sigmoid activation function for hidden layer
+
+    # Add bias term to the hidden layer
+    bias_hidden = np.ones((a_hidden.shape[0], 1))
+    a_hidden = np.hstack((a_hidden, bias_hidden))
+
+    # Forward pass to output layer
+    o = np.dot(a_hidden, w2.T)
+    a_output = 1 / (1 + np.exp(-o))  # Sigmoid activation function for output layer
+
+    # Predicted labels: the index of the highest value in the output layer
+    labels = np.argmax(a_output, axis=1)
+    
     return labels
 
 
